@@ -1,16 +1,37 @@
-import google.generativeai as genai
-genai.configure(api_key="AIzaSyAfFwFRRwAINl-xgXW6vgyO3baR0d1WikA")
-
 import streamlit as st
-import json
 import os
+import json
+
 import chromadb
 from chromadb.utils import embedding_functions
 from sentence_transformers import SentenceTransformer
+
+# ====== CẤU HÌNH ======
+CHROMA_DB_PATH = "./chroma_db"
+
+# ====== KIỂM TRA API KEY ======
+if "GOOGLE_API_KEY" not in st.secrets:
+    st.error("❌ Chưa cấu hình GOOGLE_API_KEY trong Streamlit Secrets")
+    st.stop()
+
+# ====== KHỞI TẠO GEMINI CLIENT ======
 import google.generativeai as genai
 
-# Configure Gemini API key (thay bằng key thật của bạn từ Google AI Studio)
-genai.configure(api_key="AIzaSyAfFwFRRwAINl-xgXW6vgyO3baR0d1WikA")
+# ====== KIỂM TRA API KEY ======
+if "GOOGLE_API_KEY" not in st.secrets:
+    st.error("❌ Chưa cấu hình GOOGLE_API_KEY trong Streamlit Secrets")
+    st.stop()
+
+# ====== CẤU HÌNH & KHỞI TẠO GEMINI ======
+genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+model = genai.GenerativeModel('gemini-1.5-flash')
+
+# ====== CÁCH GỌI KHI ĐẶT CÂU HỎI ======
+# response = model.generate_content("Câu hỏi của bạn")
+# st.write(response.text)
+
+
+
 
 # ================== CẤU HÌNH ==================
 JSON_FILE = "/content/drive/RAG/all_procedures_normalized.json"  # Đường dẫn file JSON (sau chunk rule-based)
@@ -21,27 +42,27 @@ GEMINI_MODEL = "gemini-2.5-flash"  # Hoặc "gemini-1.5-pro"
 @st.cache_resource
 def get_embedding_function():
     EMBEDDING_MODEL = "BAAI/bge-m3"  # Model embedding tiếng Việt
-    embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=EMBEDDING_MODEL)
+    embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="BAAI/bge-m3")
     return embedding_function
 
 @st.cache_resource
 def load_collection():
     chroma_client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
-    embedding_func = get_embedding_function()
 
-    try:
-        collection = chroma_client.get_collection(
-            name=COLLECTION_NAME,
-            embedding_function=embedding_func  # cần để query đúng
-        )
-        #st.success(f"Collection '{COLLECTION_NAME}' đã load từ {CHROMA_DB_PATH}")
-    except Exception as e:
-        st.error(f"Không tìm thấy collection '{COLLECTION_NAME}' trong {CHROMA_DB_PATH}: {e}")
-        collection = None
+    embedding_func = embedding_functions.SentenceTransformerEmbeddingFunction(
+        model_name="BAAI/bge-m3"
+    )
+
+    collection = chroma_client.get_or_create_collection(
+        name=COLLECTION_NAME,
+        embedding_function=embedding_func
+    )
 
     return collection
+
 # --- Load collection 1 lần ---
 collection = load_collection()
+
 
 def query_rag(query: str, chat_history: list, top_k: int):
     # Retrieval với top_k động
